@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibration Cloud</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:        #080c14;
+    --surface:   #0d1525;
+    --card:      #111a2e;
+    --border:    #1e2d4a;
+    --accent:    #00e5ff;
+    --accent2:   #7c3aed;
+    --text:      #e2eaf6;
+    --muted:     #4a6080;
+    --ok:        #22c55e;
+    --warn:      #eab308;
+    --err:       #ef4444;
+    --orange:    #f97316;
+    --glow:      0 0 20px rgba(0,229,255,.18);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Times New Roman', Times, serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Animated grid bg ── */
+  body::before {
+    content:'';
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events:none;
+  }
+
+  /* ── Header ── */
+  header {
+    position: sticky; top:0; z-index:100;
+    background: rgba(8,12,20,.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items:center; gap:1.5rem;
+    height: 64px;
+  }
+  .logo {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 1.15rem; font-weight:700;
+    color: var(--accent);
+    letter-spacing:.05em;
+    text-shadow: var(--glow);
+  }
+  .logo span { color:var(--text); }
+  .tagline {
+    font-size:.72rem; color:var(--muted);
+    letter-spacing:.15em; text-transform:uppercase;
+  }
+  .header-right { margin-left:auto; display:flex; align-items:center; gap:1rem; }
+  .live-badge {
+    display:flex; align-items:center; gap:.45rem;
+    font-family:'Times New Roman', Times, serif; font-size:.7rem;
+    color:var(--ok); letter-spacing:.1em;
+  }
+  .live-dot {
+    width:8px; height:8px; border-radius:50%;
+    background:var(--ok);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100%{ opacity:1; transform:scale(1); box-shadow:0 0 0 0 rgba(34,197,94,.5); }
+    50%    { opacity:.7; transform:scale(1.2); box-shadow:0 0 0 6px rgba(34,197,94,0); }
+  }
+
+  /* ── Layout ── */
+  main {
+    position:relative; z-index:1;
+    max-width:1400px; margin:0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ── Section title ── */
+  .section-title {
+    font-size:.65rem; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:1rem;
+    display:flex; align-items:center; gap:.75rem;
+  }
+  .section-title::after {
+    content:''; flex:1; height:1px; background:var(--border);
+  }
+
+  /* ── Grid helpers ── */
+  .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.5rem; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+  .grid-3 { display:grid; grid-template-columns:2fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+  @media(max-width:1100px){ .grid-4{ grid-template-columns:repeat(2,1fr); } }
+  @media(max-width:768px){
+    .grid-4,.grid-2,.grid-3{ grid-template-columns:1fr; }
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    transition: border-color .3s;
+  }
+  .card:hover { border-color: rgba(0,229,255,.25); }
+
+  /* ── Stat card ── */
+  .stat-card {
+    position:relative; overflow:hidden;
+  }
+  .stat-card::before {
+    content:''; position:absolute;
+    top:-60px; right:-40px;
+    width:140px; height:140px; border-radius:50%;
+    background: radial-gradient(circle, rgba(0,229,255,.08), transparent 70%);
+  }
+  .stat-label {
+    font-size:.65rem; letter-spacing:.15em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:.5rem;
+  }
+  .stat-value {
+    font-family:'Times New Roman', Times, serif; font-size:2rem; font-weight:700;
+    color:var(--accent); line-height:1;
+  }
+  .stat-value.ok    { color:var(--ok);     }
+  .stat-value.warn  { color:var(--warn);   }
+  .stat-value.err   { color:var(--err);    }
+  .stat-value.info  { color:var(--accent); }
+  .stat-unit { font-size:.75rem; color:var(--muted); margin-top:.35rem; }
+
+  /* ── Gauge-style AI card ── */
+  #ai-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display:flex; flex-direction:column; gap:1rem;
+  }
+  .ai-header { display:flex; align-items:center; gap:.75rem; }
+  .ai-icon { font-size:2rem; }
+  .ai-label {
+    font-size:.6rem; letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+  }
+  .ai-pred {
+    font-size:1.4rem; font-weight:800; color:var(--ok);
+    transition: color .4s;
+  }
+  .ai-conf {
+    font-family:'Times New Roman', Times, serif;
+    font-size:.8rem; color:var(--muted); margin-top:.15rem;
+  }
+
+  /* ── Probability bars ── */
+  .prob-bars { display:flex; flex-direction:column; gap:.55rem; }
+  .prob-row { display:flex; align-items:center; gap:.75rem; }
+  .prob-name { font-size:.65rem; color:var(--muted); width:120px; flex-shrink:0; }
+  .prob-track {
+    flex:1; height:6px; background:var(--border); border-radius:3px; overflow:hidden;
+  }
+  .prob-fill {
+    height:100%; border-radius:3px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+  }
+  .prob-pct {
+    font-family:'Times New Roman',Times,serif; font-size:.6rem; color:var(--muted);
+    width:38px; text-align:right; flex-shrink:0;
+  }
+
+  /* ── Real-time gauge ── */
+  .gauge-wrap { display:flex; justify-content:center; padding:.5rem 0; }
+  canvas.gauge { width:160px!important; height:160px!important; }
+
+  /* ── Chart ── */
+  .chart-container { position:relative; height:220px; }
+
+  /* ── Node selector ── */
+  .toolbar {
+    display:flex; align-items:center; gap:1rem;
+    margin-bottom:1.5rem; flex-wrap:wrap;
+  }
+  .node-btn {
+    padding:.4rem 1rem; border-radius:6px;
+    border:1px solid var(--border);
+    background:transparent; color:var(--muted);
+    font-family:'Times New Roman', Times, serif; font-size:.8rem;
+    cursor:pointer; transition:all .2s;
+  }
+  .node-btn.active {
+    border-color:var(--accent); color:var(--accent);
+    background:rgba(0,229,255,.06);
+    box-shadow:var(--glow);
+  }
+  .axis-select {
+    padding:.4rem .8rem; border-radius:6px;
+    border:1px solid var(--border);
+    background:var(--surface); color:var(--text);
+    font-family:'Times New Roman', Times, serif; font-size:.8rem;
+    cursor:pointer;
+  }
+  .refresh-btn {
+    margin-left:auto;
+    padding:.4rem 1.1rem; border-radius:6px;
+    border:1px solid var(--accent);
+    background:rgba(0,229,255,.07); color:var(--accent);
+    font-family:'Times New Roman', Times, serif; font-size:.8rem;
+    cursor:pointer; transition:all .2s;
+  }
+  .refresh-btn:hover { background:rgba(0,229,255,.15); }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x:auto; }
+  table {
+    width:100%; border-collapse:collapse;
+    font-size:.78rem;
+  }
+  thead tr { border-bottom:2px solid var(--border); }
+  th {
+    padding:.6rem .8rem; text-align:left;
+    font-size:.6rem; letter-spacing:.15em; text-transform:uppercase;
+    color:var(--muted); font-weight:600;
+  }
+  tbody tr {
+    border-bottom:1px solid rgba(30,45,74,.6);
+    transition:background .15s;
+  }
+  tbody tr:hover { background:rgba(0,229,255,.03); }
+  td { padding:.55rem .8rem; font-family:'Times New Roman', Times, serif; font-size:.78rem; }
+  .badge {
+    display:inline-flex; align-items:center; gap:.3rem;
+    padding:.2rem .55rem; border-radius:4px; font-size:.65rem; font-weight:600;
+  }
+  .badge-normal    { background:rgba(34,197,94,.12);  color:var(--ok);     }
+  .badge-bearing   { background:rgba(239,68,68,.12);  color:var(--err);    }
+  .badge-misalign  { background:rgba(249,115,22,.12); color:var(--orange); }
+  .badge-unbalance { background:rgba(234,179,8,.12);  color:var(--warn);   }
+  .badge-unknown   { background:rgba(74,96,128,.12);  color:var(--muted);  }
+
+  /* ── Prediction distribution donut label ── */
+  .dist-wrap { display:flex; align-items:center; gap:2rem; }
+  .dist-chart { width:140px; height:140px; flex-shrink:0; }
+  .dist-legend { flex:1; display:flex; flex-direction:column; gap:.5rem; }
+  .dist-item { display:flex; align-items:center; gap:.6rem; font-size:.73rem; }
+  .dist-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+  /* ── Footer ── */
+  footer {
+    position:relative; z-index:1;
+    text-align:center; padding:1.5rem;
+    font-size:.65rem; color:var(--muted); letter-spacing:.1em;
+    border-top:1px solid var(--border);
+  }
+
+  /* ── Flash animation for new data ── */
+  @keyframes flash {
+    0%  { border-color:rgba(0,229,255,.8); }
+    100%{ border-color:var(--border); }
+  }
+  .flash { animation: flash .7s ease; }
+
+  /* ── CSV export button ── */
+  .csv-btn {
+    padding:.4rem 1.1rem; border-radius:6px;
+    border:1px solid var(--ok);
+    background:rgba(34,197,94,.07); color:var(--ok);
+    font-family:'Times New Roman', Times, serif; font-size:.8rem;
+    cursor:pointer; transition:all .2s; text-decoration:none;
+    display:inline-flex; align-items:center; gap:.4rem;
+  }
+  .csv-btn:hover { background:rgba(34,197,94,.18); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width:5px; height:5px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo" style="font-family:'Times New Roman',Times,serif;letter-spacing:.05em;">Cơ sở dữ liệu giám sát động cơ</div>
+  </div>
+  <div class="header-right">
+    <div id="last-update" style="font-size:.65rem;color:var(--muted);font-family:'Times New Roman',Times,serif;">--:--:--</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Toolbar ── -->
+  <div class="toolbar">
+    <span class="section-title" style="margin:0;flex-shrink:0">Node</span>
+    <button class="node-btn active" data-node="all">Tất cả</button>
+    <div id="node-btns"></div>
+    <select class="axis-select" id="axis-select">
+      <option value="vrms">Vrms (mm/s)</option>
+      <option value="x_rms">Trục X RMS (g)</option>
+      <option value="y_rms">Trục Y RMS (g)</option>
+      <option value="z_rms">Trục Z RMS (g)</option>
+      <option value="kurtosis">Kurtosis</option>
+      <option value="skewness">Skewness</option>
+    </select>
+    <button class="refresh-btn" id="refresh-btn">↻ Làm mới</button>
+  </div>
+
+  <!-- ── Stat cards ── -->
+  <div class="section-title">Tổng quan</div>
+  <div class="grid-4" id="stat-cards">
+    <div class="card stat-card">
+      <div class="stat-label">Tổng bản ghi</div>
+      <div class="stat-value info" id="s-total">—</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label">Vrms gần nhất</div>
+      <div class="stat-value" id="s-vrms">—</div>
+      <div class="stat-unit">mm/s</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label">Kurtosis gần nhất</div>
+      <div class="stat-value info" id="s-mag">—</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label">Node hoạt động</div>
+      <div class="stat-value info" id="s-nodes">—</div>
+    </div>
+  </div>
+
+  <!-- ── Main grid: chart + AI ── -->
+  <div class="section-title">Tín hiệu & Dự đoán AI</div>
+  <div class="grid-3">
+    <!-- Chart -->
+    <div class="card" id="chart-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <span style="font-size:.8rem;font-weight:600;color:var(--accent)">Lịch sử tín hiệu</span>
+        <span id="chart-axis-label" style="font-size:.65rem;color:var(--muted)">Vrms (mm/s)</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="main-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- AI -->
+    <div id="ai-card">
+      <div class="ai-header">
+        <div class="ai-icon" id="ai-icon">🔍</div>
+        <div>
+          <div class="ai-label">Dự đoán trạng thái động cơ</div>
+          <div class="ai-pred" id="ai-pred">Chờ dữ liệu...</div>
+          <div class="ai-conf" id="ai-conf">Độ tin cậy: —</div>
+        </div>
+      </div>
+
+      <div class="gauge-wrap">
+        <canvas id="conf-gauge" class="gauge" width="160" height="160"></canvas>
+      </div>
+
+      <div class="prob-bars" id="prob-bars">
+        <!-- filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Distribution + latest ── -->
+  <div class="grid-2">
+    <div class="card">
+      <div style="font-size:.8rem;font-weight:600;color:var(--text);margin-bottom:1rem;">
+        Phân bố dự đoán
+      </div>
+      <div class="dist-wrap">
+        <div class="dist-chart">
+          <canvas id="dist-chart"></canvas>
+        </div>
+        <div class="dist-legend" id="dist-legend"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:.8rem;font-weight:600;color:var(--text);margin-bottom:1rem;">
+        Bản ghi mới nhất
+      </div>
+      <div id="latest-detail" style="display:flex;flex-direction:column;gap:.55rem;">
+        <div style="color:var(--muted);font-size:.75rem;">Chờ dữ liệu...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Table ── -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+    <div class="section-title" style="margin:0;flex:1">Lịch sử dữ liệu</div>
+    <a id="csv-download-btn" class="csv-btn" href="/api/export_csv" download>
+      ⬇ Tải CSV
+    </a>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Thời gian</th>
+            <th>Node</th>
+            <th>X RMS (g)</th>
+            <th>Y RMS (g)</th>
+            <th>Z RMS (g)</th>
+            <th>Vrms (mm/s)</th>
+            <th>Kurtosis</th>
+            <th>Dự đoán AI</th>
+            <th>Tin cậy</th>
+          </tr>
+        </thead>
+        <tbody id="data-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+</footer>
+
+<script>
+// ── Config ─────────────────────────────────────────────────
+const API = window.location.origin;
+const REFRESH_MS = 5000;
+
+// ── State ──────────────────────────────────────────────────
+let selectedNode = "all";
+let selectedAxis = "vrms";
+let mainChart    = null;
+let distChart    = null;
+let confCanvas   = null;
+let confCtx      = null;
+
+// ── Label map (mirrors server) ─────────────────────────────
+const LABELS = {
+  collecting:    { vi:"Đang thu dữ liệu", color:"#38bdf8", icon:"⏳" },
+  normal:        { vi:"Bình thường",      color:"#22c55e", icon:"✅" },
+  bearing_fault: { vi:"Lỗi ổ lăn",       color:"#ef4444", icon:"🔴" },
+  misalignment:  { vi:"Lệch trục",        color:"#f97316", icon:"🟠" },
+  unbalance:     { vi:"Mất cân bằng",     color:"#eab308", icon:"🟡" },
+  looseness:     { vi:"Lỏng lẻo cơ khí", color:"#3b82f6", icon:"🔵" },
+};
+function getLabel(key) { return LABELS[key] || { vi: key||"—", color:"#4a6080", icon:"❓" }; }
+
+function badgeClass(key) {
+  if (!key) return "badge-unknown";
+  return {
+  collecting:"badge-unknown",
+
+  normal:"badge-normal",
+  bearing_fault:"badge-bearing",
+  misalignment:"badge-misalign",
+  unbalance:"badge-unbalance"
+}[key] || "badge-unknown";
+}
+
+// ── Fetch helpers ──────────────────────────────────────────
+async function fetchJSON(url) {
+  try {
+    const r = await fetch(url);
+    return await r.json();
+  } catch { return null; }
+}
+
+// ── Init charts ────────────────────────────────────────────
+function initMainChart() {
+  const ctx = document.getElementById("main-chart").getContext("2d");
+  mainChart = new Chart(ctx, {
+    type: "line",
+    data: { labels:[], datasets:[{
+      label: "Signal",
+      data: [],
+      borderColor:"#00e5ff",
+      backgroundColor:"rgba(0,229,255,.06)",
+      borderWidth:2,
+      pointRadius:3,
+      pointBackgroundColor:"#00e5ff",
+      fill:true,
+      tension:.4,
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:400 },
+      plugins:{ legend:{ display:false }, tooltip:{
+        callbacks:{ title: (i)=> i[0].label.slice(11,19) }
+      }},
+      scales:{
+        x:{ ticks:{ color:"#4a6080", font:{size:9}, maxTicksLimit:8,
+              callback:(v,i,arr)=>{ const l=mainChart?.data.labels[i]; return l?l.slice(11,19):""; }
+            },
+            grid:{ color:"rgba(30,45,74,.5)" }},
+        y:{ ticks:{ color:"#4a6080", font:{size:9} },
+            grid:{ color:"rgba(30,45,74,.5)" }},
+      },
+    }
+  });
+}
+
+function initDistChart() {
+  const ctx = document.getElementById("dist-chart").getContext("2d");
+  distChart = new Chart(ctx, {
+    type:"doughnut",
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:[], borderWidth:0, hoverOffset:4 }]},
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      cutout:"68%",
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{
+        label:(i)=>`${i.label}: ${i.raw}`
+      }}},
+      animation:{ duration:600 }
+    }
+  });
+}
+
+// ── Confidence gauge (canvas) ──────────────────────────────
+function drawGauge(pct, color) {
+  confCanvas = document.getElementById("conf-gauge");
+  const ctx  = confCanvas.getContext("2d");
+  const W = confCanvas.width, H = confCanvas.height;
+  const cx = W/2, cy = H/2+10, r = 60;
+  const startA = Math.PI*0.75, endA = Math.PI*2.25;
+  const sweepA = startA + (endA-startA)*pct;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Track
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,startA,endA);
+  ctx.strokeStyle="#1e2d4a"; ctx.lineWidth=10; ctx.lineCap="round";
+  ctx.stroke();
+
+  // Fill
+  if(pct>0){
+    const grad = ctx.createLinearGradient(cx-r,cy,cx+r,cy);
+    grad.addColorStop(0,"#7c3aed");
+    grad.addColorStop(1, color||"#00e5ff");
+    ctx.beginPath();
+    ctx.arc(cx,cy,r,startA,sweepA);
+    ctx.strokeStyle=grad; ctx.lineWidth=10; ctx.lineCap="round";
+    ctx.stroke();
+  }
+
+  // Text
+  ctx.fillStyle = color||"#00e5ff";
+  ctx.font = "bold 22px 'Times New Roman'";
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(pct>0? Math.round(pct*100)+"%":"—", cx, cy);
+
+  ctx.fillStyle="#4a6080";
+  ctx.font="12px Times New Roman";
+  ctx.fillText("confidence", cx, cy+20);
+}
+
+// ── Update UI ──────────────────────────────────────────────
+function updateAIPanel(latest) {
+  if (!latest || !latest.prediction) {
+    document.getElementById("ai-pred").textContent = "Không có model AI";
+    document.getElementById("ai-conf").textContent = "";
+    drawGauge(0, "#4a6080");
+    return;
+  }
+  const p    = latest.prediction;
+
+  if (p === "collecting") {
+    document.getElementById("ai-icon").textContent = "⏳";
+
+    const predEl = document.getElementById("ai-pred");
+
+    predEl.textContent = "Đang thu dữ liệu";
+    predEl.style.color = "#38bdf8";
+
+    document.getElementById("ai-conf").textContent =
+      "Cần đủ 20 mẫu để AI dự đoán";
+
+    drawGauge(0, "#38bdf8");
+
+    return;
+  }
+  const lbl  = getLabel(p);
+  const conf = latest.confidence||0;
+
+  document.getElementById("ai-icon").textContent = lbl.icon;
+  const predEl = document.getElementById("ai-pred");
+  predEl.textContent = lbl.vi;
+  predEl.style.color = lbl.color;
+  document.getElementById("ai-conf").textContent = `Độ tin cậy: ${(conf*100).toFixed(1)}%`;
+
+  drawGauge(conf, lbl.color);
+}
+
+function updateProbBars(dist) {
+  const wrap = document.getElementById("prob-bars");
+  wrap.innerHTML = "";
+  const keys = Object.keys(LABELS);
+  keys.forEach(k => {
+    const pct = (dist?.[k]||0)*100;
+    const lbl = getLabel(k);
+    wrap.innerHTML += `
+      <div class="prob-row">
+        <span class="prob-name">${lbl.icon} ${lbl.vi}</span>
+        <div class="prob-track">
+          <div class="prob-fill" style="width:${pct.toFixed(1)}%;background:linear-gradient(90deg,#7c3aed,${lbl.color})"></div>
+        </div>
+        <span class="prob-pct">${pct.toFixed(0)}%</span>
+      </div>`;
+  });
+}
+
+function updateDistChart(predDist) {
+  if(!distChart) return;
+  const keys   = Object.keys(predDist);
+  const vals   = keys.map(k=>predDist[k]);
+  const colors = keys.map(k=>getLabel(k).color);
+
+  distChart.data.labels   = keys.map(k=>getLabel(k).vi);
+  distChart.data.datasets[0].data            = vals;
+  distChart.data.datasets[0].backgroundColor = colors;
+  distChart.update();
+
+  // legend
+  const leg = document.getElementById("dist-legend");
+  leg.innerHTML = "";
+  keys.forEach((k,i)=>{
+    const lbl = getLabel(k);
+    leg.innerHTML += `
+      <div class="dist-item">
+        <div class="dist-dot" style="background:${lbl.color}"></div>
+        <span style="color:var(--muted)">${lbl.vi}</span>
+        <span style="margin-left:auto;font-family:'Times New Roman',Times,serif;font-size:.65rem">${vals[i]}</span>
+      </div>`;
+  });
+}
+
+function updateLatestDetail(latest) {
+  if (!latest) return;
+  const lbl = getLabel(latest.prediction);
+  const el  = document.getElementById("latest-detail");
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:.5rem;">
+      ${[
+        ["Node",      latest.node],
+        ["X RMS",     (latest.x_rms||0).toFixed(4)+" g"],
+        ["Y RMS",     (latest.y_rms||0).toFixed(4)+" g"],
+        ["Z RMS",     (latest.z_rms||0).toFixed(4)+" g"],
+        ["Vrms",      (latest.vrms||0).toFixed(4)+" mm/s"],
+        ["Kurtosis",  (latest.kurtosis||0).toFixed(3)],
+        ["Skewness",  (latest.skewness||0).toFixed(3)],
+        ["Thời gian", latest.timestamp],
+      ].map(([k,v])=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid rgba(30,45,74,.4)">
+          <span style="font-size:.7rem;color:var(--muted)">${k}</span>
+          <span style="font-family:'Times New Roman',Times,serif;font-size:.7rem;color:var(--text)">${v||"—"}</span>
+        </div>`).join("")}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;">
+        <span style="font-size:.7rem;color:var(--muted)">Trạng thái</span>
+        <span class="badge ${badgeClass(latest.prediction)}">${lbl.icon} ${lbl.vi}</span>
+      </div>
+    </div>`;
+}
+
+function updateTable(rows) {
+  const tbody = document.getElementById("data-table");
+  tbody.innerHTML = rows.slice(0,50).map(r=>{
+    const lbl = getLabel(r.prediction);
+    return `<tr>
+      <td>${(r.timestamp||"—").replace("T"," ")}</td>
+      <td>${r.node}</td>
+      <td>${(r.x_rms||0).toFixed(4)}</td>
+      <td>${(r.y_rms||0).toFixed(4)}</td>
+      <td>${(r.z_rms||0).toFixed(4)}</td>
+      <td>${(r.vrms||0).toFixed(4)}</td>
+      <td>${(r.kurtosis||0).toFixed(2)}</td>
+      <td><span class="badge ${badgeClass(r.prediction)}">${lbl.icon} ${lbl.vi}</span></td>
+      <td style="font-family:'Times New Roman',Times,serif">${r.confidence!=null? (r.confidence*100).toFixed(1)+"%" : "—"}</td>
+    </tr>`;
+  }).join("");
+}
+
+function updateChart(data) {
+  if (!mainChart||!data) return;
+  mainChart.data.labels   = data.labels;
+  mainChart.data.datasets[0].data = data.values;
+
+  // Color points by prediction
+  const colors = (data.predictions||[]).map(p=>{
+    return getLabel(p).color;
+  });
+  mainChart.data.datasets[0].pointBackgroundColor = colors;
+  mainChart.update("none");
+}
+
+function updateNodeButtons(nodes) {
+  const wrap = document.getElementById("node-btns");
+  wrap.innerHTML = "";
+  nodes.forEach(n=>{
+    const btn = document.createElement("button");
+    btn.className="node-btn";
+    btn.dataset.node=n;
+    btn.textContent=`Node ${n}`;
+    btn.addEventListener("click",()=>selectNode(String(n)));
+    wrap.appendChild(btn);
+  });
+}
+
+function selectNode(n) {
+  selectedNode = n;
+  document.querySelectorAll(".node-btn").forEach(b=>{
+    b.classList.toggle("active", b.dataset.node===n);
+  });
+  updateCsvBtn();
+  refresh();
+}
+
+// ── Main refresh ───────────────────────────────────────────
+async function refresh() {
+  const nodeQ = selectedNode==="all" ? "" : `&node=${selectedNode}`;
+
+  const [stats, recent, chart] = await Promise.all([
+    fetchJSON(`${API}/api/stats`),
+    fetchJSON(`${API}/api/recent?limit=50${nodeQ}`),
+    fetchJSON(`${API}/api/chart?limit=60&axis=${selectedAxis}${nodeQ}`),
+  ]);
+
+  if (stats) {
+    document.getElementById("s-total").textContent = stats.total_records||0;
+    document.getElementById("s-nodes").textContent = (stats.nodes||[]).length;
+    updateNodeButtons(stats.nodes||[]);
+    updateDistChart(stats.prediction_dist||{});
+    if(stats.latest) {
+      const v = stats.latest.vrms||0;
+      const el = document.getElementById("s-vrms");
+      el.textContent = v.toFixed(3);
+      el.className   = "stat-value "+(v>10?"err":v>5?"warn":"ok");
+      const m = stats.latest.kurtosis||0;
+      document.getElementById("s-mag").textContent = m.toFixed(2);
+      updateAIPanel(stats.latest);
+    }
+  }
+
+  if (recent && recent.length>0) {
+    updateTable(recent);
+    updateLatestDetail(recent[0]);
+    // get latest proba if available from table
+    // (prob bars need per-record detail — use latest stats)
+  }
+
+  if (chart) updateChart(chart);
+
+  // timestamp
+  document.getElementById("last-update").textContent =
+    new Date().toLocaleTimeString("vi-VN");
+
+  // flash chart card
+  const cc = document.getElementById("chart-card");
+  cc.classList.remove("flash");
+  void cc.offsetWidth;
+  cc.classList.add("flash");
+}
+
+// ── CSV export button — cập nhật URL theo node đang chọn ──
+function updateCsvBtn() {
+  const btn = document.getElementById("csv-download-btn");
+  if (!btn) return;
+  const nodeQ = selectedNode === "all" ? "" : `?node=${selectedNode}`;
+  btn.href = `${API}/api/export_csv${nodeQ}`;
+}
+
+// ── Axis select ────────────────────────────────────────────
+document.getElementById("axis-select").addEventListener("change", e=>{
+  selectedAxis = e.target.value;
+  const axisLabels = { vrms:"Vrms (mm/s)", x_rms:"Trục X RMS (g)", y_rms:"Trục Y RMS (g)", z_rms:"Trục Z RMS (g)", kurtosis:"Kurtosis", skewness:"Skewness" };
+  document.getElementById("chart-axis-label").textContent = axisLabels[selectedAxis]||selectedAxis;
+  refresh();
+});
+
+document.getElementById("refresh-btn").addEventListener("click", refresh);
+document.querySelector(".node-btn[data-node='all']").addEventListener("click",()=>selectNode("all"));
+
+// ── Start ──────────────────────────────────────────────────
+initMainChart();
+initDistChart();
+drawGauge(0, "#4a6080");
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>
